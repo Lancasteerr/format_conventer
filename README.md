@@ -33,7 +33,7 @@
 
 ## 软件截图
 
-![main](E:\codes\format conventer\docs\screenshorts\main.png)
+![main](docs\screenshorts\main.png)
 
 ## 获取方式
 
