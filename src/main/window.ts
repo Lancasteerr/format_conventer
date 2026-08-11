@@ -7,7 +7,7 @@ export function createMainWindow(): BrowserWindow {
     height: 760,
     minWidth: 900,
     minHeight: 620,
-    title: '图片格式转换器',
+    title: 'Format conventer',
     backgroundColor: '#f6f7f9',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

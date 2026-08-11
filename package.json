@@ -1,7 +1,7 @@
 {
   "name": "image-format-converter",
   "version": "1.0.0",
-  "description": "基于 TypeScript 和 Electron 的 Windows 图片格式转换器",
+  "description": "基于 TypeScript 和 Electron 的 Windows 格式转换器",
   "main": "out/main/index.js",
   "author": "Rin",
   "license": "MIT",
@@ -32,7 +32,7 @@
   },
   "build": {
     "appId": "com.local.image-format-converter",
-    "productName": "图片格式转换器",
+    "productName": "Format_conventer",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -55,7 +55,7 @@
           ]
         }
       ],
-      "artifactName": "图片格式转换器-${version}-portable.exe"
+      "artifactName": "Format_conventer-${version}-portable.exe"
     }
   }
 }
