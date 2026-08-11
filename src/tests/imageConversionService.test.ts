@@ -1,4 +1,4 @@
-import { access, mkdtemp, rm, stat } from 'node:fs/promises'
+import { access, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
@@ -36,6 +36,31 @@ describe('ImageConversionService', () => {
     expect(lowQualityPreview.outputSize).toEqual(expect.any(Number))
     expect(lowQualityPreview.outputSize ?? 0).toBeGreaterThan(0)
     expect(lowQualityPreview.outputSize ?? 0).toBeLessThan(highQualityPreview.outputSize ?? 0)
+  })
+
+  it('previews webp and jpeg sizes for a real jpeg source', async () => {
+    const item = await createTestItem('jpeg')
+    const service = new ImageConversionService()
+
+    const [webpPreview] = await service.previewOutputSizes([item], {
+      targetFormat: 'webp',
+      quality: 85
+    })
+    const [jpegPreview] = await service.previewOutputSizes([item], {
+      targetFormat: 'jpeg',
+      quality: 85
+    })
+
+    expect(webpPreview).toMatchObject({
+      id: item.id,
+      outputSize: expect.any(Number)
+    })
+    expect(jpegPreview).toMatchObject({
+      id: item.id,
+      outputSize: expect.any(Number)
+    })
+    expect(webpPreview.outputSize ?? 0).toBeGreaterThan(0)
+    expect(jpegPreview.outputSize ?? 0).toBeGreaterThan(0)
   })
 
   it('stores the actual output file size after conversion', async () => {
@@ -79,10 +104,82 @@ describe('ImageConversionService', () => {
     })
   })
 
-  async function createTestItem(): Promise<BatchItem> {
+  it('returns a readable per-item error for a truncated jpg preview', async () => {
+    const item = await createTruncatedJpegItem()
+
+    const [result] = await new ImageConversionService().previewOutputSizes([item], {
+      targetFormat: 'webp',
+      quality: 85
+    })
+
+    expect(result.id).toBe(item.id)
+    expect(result.outputSize).toBeUndefined()
+    expect(result.error).toContain('JPG 文件可能已损坏或未完整写入')
+  })
+
+  async function createTestItem(format: 'png' | 'jpeg' = 'png'): Promise<BatchItem> {
     const width = 96
     const height = 96
     const channels = 3
+    const pixels = createTestPixels(width, height, channels)
+    const imagePath = join(tempDir, `source.${format === 'jpeg' ? 'jpg' : format}`)
+    const image = sharp(pixels, {
+      raw: {
+        width,
+        height,
+        channels
+      }
+    })
+
+    if (format === 'jpeg') {
+      await image.jpeg({ quality: 92 }).toFile(imagePath)
+    } else {
+      await image.png().toFile(imagePath)
+    }
+
+    const imageStat = await stat(imagePath)
+
+    return {
+      id: `item-${format}`,
+      name: `source.${format === 'jpeg' ? 'jpg' : format}`,
+      sourcePath: imagePath,
+      size: imageStat.size,
+      detectedFormat: format,
+      status: 'pending'
+    }
+  }
+
+  async function createTruncatedJpegItem(): Promise<BatchItem> {
+    const width = 96
+    const height = 96
+    const channels = 3
+    const fullJpeg = await sharp(createTestPixels(width, height, channels), {
+      raw: {
+        width,
+        height,
+        channels
+      }
+    })
+      .jpeg({ quality: 92 })
+      .toBuffer()
+    const imagePath = join(tempDir, 'truncated.jpg')
+    const truncatedJpeg = fullJpeg.subarray(0, Math.floor(fullJpeg.length * 0.7))
+
+    await writeFile(imagePath, truncatedJpeg)
+
+    const imageStat = await stat(imagePath)
+
+    return {
+      id: 'item-truncated-jpeg',
+      name: 'truncated.jpg',
+      sourcePath: imagePath,
+      size: imageStat.size,
+      detectedFormat: 'jpeg',
+      status: 'pending'
+    }
+  }
+
+  function createTestPixels(width: number, height: number, channels: number): Buffer {
     const pixels = Buffer.alloc(width * height * channels)
 
     for (let y = 0; y < height; y += 1) {
@@ -94,26 +191,6 @@ describe('ImageConversionService', () => {
       }
     }
 
-    const imagePath = join(tempDir, 'source.png')
-    await sharp(pixels, {
-      raw: {
-        width,
-        height,
-        channels
-      }
-    })
-      .png()
-      .toFile(imagePath)
-
-    const imageStat = await stat(imagePath)
-
-    return {
-      id: 'item-1',
-      name: 'source.png',
-      sourcePath: imagePath,
-      size: imageStat.size,
-      detectedFormat: 'png',
-      status: 'pending'
-    }
+    return pixels
   }
 })

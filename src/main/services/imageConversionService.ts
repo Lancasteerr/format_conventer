@@ -14,6 +14,9 @@ import { createAvailableOutputPath } from '@main/utils/outputPath'
 import { getConversionStrategy } from './conversionStrategy'
 
 type ProgressCallback = (event: ConversionProgressEvent) => void
+type FormatOptions = Pick<ConvertOptions, 'targetFormat' | 'quality'>
+
+const ANIMATED_SOURCE_FORMATS = new Set<TargetFormat>(['gif', 'webp'])
 
 export class ImageConversionService {
   async previewOutputSizes(
@@ -63,16 +66,7 @@ export class ImageConversionService {
   private async convertOne(item: BatchItem, options: ConvertOptions): Promise<BatchItem> {
     try {
       const outputPath = createAvailableOutputPath(item.sourcePath, options.outputDir, options.targetFormat)
-      const metadata = await sharp(item.sourcePath, { animated: true }).metadata()
-      const strategy = getConversionStrategy(item.detectedFormat, options.targetFormat, metadata.pages ?? 1)
-
-      /*
-       * 动图策略：
-       * - GIF/WebP 互转时读取全部帧，尽量保留动画信息；
-       * - 转 JPG/PNG 时不启用 animated，sharp 默认只处理首帧。
-       */
-      const pipeline = sharp(item.sourcePath, { animated: strategy.readAnimatedInput }).rotate()
-      const formattedPipeline = this.applyTargetFormat(pipeline, options.targetFormat, options.quality, metadata)
+      const formattedPipeline = await this.createFormattedPipeline(item, options)
 
       await formattedPipeline.toFile(outputPath)
       const outputStat = await stat(outputPath)
@@ -106,15 +100,7 @@ export class ImageConversionService {
     options: OutputSizePreviewOptions
   ): Promise<OutputSizePreviewResult> {
     try {
-      const metadata = await sharp(item.sourcePath, { animated: true }).metadata()
-      const strategy = getConversionStrategy(item.detectedFormat, options.targetFormat, metadata.pages ?? 1)
-      const pipeline = sharp(item.sourcePath, { animated: strategy.readAnimatedInput }).rotate()
-      const formattedPipeline = this.applyTargetFormat(
-        pipeline,
-        options.targetFormat,
-        options.quality,
-        metadata
-      )
+      const formattedPipeline = await this.createFormattedPipeline(item, options)
       const outputBuffer = await formattedPipeline.toBuffer()
 
       return {
@@ -124,9 +110,29 @@ export class ImageConversionService {
     } catch (error) {
       return {
         id: item.id,
-        error: error instanceof Error ? error.message : '预览失败'
+        error: getPreviewErrorMessage(item, error)
       }
     }
+  }
+
+  private async createFormattedPipeline(item: BatchItem, options: FormatOptions): Promise<Sharp> {
+    const metadata = await this.readMetadata(item)
+    const strategy = getConversionStrategy(item.detectedFormat, options.targetFormat, metadata.pages ?? 1)
+
+    /*
+     * 动图策略：
+     * - GIF/WebP 互转时读取全部帧，尽量保留动画信息；
+     * - 转 JPG/PNG 时不启用 animated，sharp 默认只处理首帧。
+     */
+    const pipeline = sharp(item.sourcePath, { animated: strategy.readAnimatedInput }).rotate()
+
+    return this.applyTargetFormat(pipeline, options.targetFormat, options.quality, metadata)
+  }
+
+  private readMetadata(item: BatchItem): Promise<Metadata> {
+    return sharp(item.sourcePath, {
+      animated: ANIMATED_SOURCE_FORMATS.has(item.detectedFormat)
+    }).metadata()
   }
 
   private applyTargetFormat(
@@ -174,4 +180,34 @@ function clearOutputResult(item: BatchItem): BatchItem {
     outputFormat: undefined,
     outputQuality: undefined
   }
+}
+
+function getPreviewErrorMessage(item: BatchItem, error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (isFileReadError(error)) {
+    return `文件无法读取：${message}`
+  }
+
+  if (item.detectedFormat === 'jpeg' && isJpegDecodeError(message)) {
+    return `JPG 文件可能已损坏或未完整写入：${message}`
+  }
+
+  if (/unsupported image format|Input file contains unsupported image format/i.test(message)) {
+    return `文件不是可识别的图片：${message}`
+  }
+
+  return `预览失败：${message}`
+}
+
+function isFileReadError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    ['ENOENT', 'EACCES', 'EPERM', 'EBUSY'].includes(String(error.code))
+  )
+}
+
+function isJpegDecodeError(message: string): boolean {
+  return /jpe?g|vipsjpeg|premature end|corrupt|unsupported marker|invalid sos|invalid jpeg/i.test(message)
 }

@@ -63,7 +63,13 @@ export function useOutputSizePreview(
 
     const timer = window.setTimeout(async () => {
       try {
-        const results = await window.imageConverter.previewOutputSizes(items, {
+        const previewOutputSizes = window.imageConverter.previewOutputSizes
+
+        if (typeof previewOutputSizes !== 'function') {
+          throw new Error('previewOutputSizes is not a function')
+        }
+
+        const results = await previewOutputSizes(items, {
           targetFormat,
           quality
         })
@@ -78,7 +84,7 @@ export function useOutputSizePreview(
           return
         }
 
-        const message = error instanceof Error ? error.message : '预览失败'
+        const message = getPreviewRequestErrorMessage(error)
 
         setPreviews(
           Object.fromEntries(
@@ -100,6 +106,16 @@ export function useOutputSizePreview(
   }, [items, targetFormat, quality, isPaused])
 
   return previews
+}
+
+export function getPreviewRequestErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+
+  if (/previewOutputSizes is not a function|No handler registered.*preview-output-sizes/i.test(message)) {
+    return '请重启应用加载预览接口'
+  }
+
+  return message || '预览失败'
 }
 
 function mapPreviewResults(results: OutputSizePreviewResult[]): OutputSizePreviewById {

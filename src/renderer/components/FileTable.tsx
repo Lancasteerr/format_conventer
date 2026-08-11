@@ -119,9 +119,11 @@ function OutputSizeCell({
     return <span className="size-preview muted">{preview.unavailableReason ?? '质量不适用'}</span>
   }
 
+  const error = preview.error ?? '预览失败'
+
   return (
-    <span className="size-preview error" title={preview.error ?? '预览失败'}>
-      预览失败
+    <span className="size-preview error" title={error}>
+      {getCompactPreviewError(error)}
     </span>
   )
 }
@@ -190,6 +192,16 @@ function getSizeDelta(
         label: `增大 ${percentage}%`,
         className: 'increased'
       }
+}
+
+function getCompactPreviewError(error: string): string {
+  const separatorIndex = error.indexOf('：')
+
+  if (separatorIndex > 0) {
+    return error.slice(0, separatorIndex)
+  }
+
+  return error
 }
 
 function StatusBadge({ status }: { status: BatchStatus }): JSX.Element {
