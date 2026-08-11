@@ -12,6 +12,9 @@ export interface BatchItem {
   detectedFormat: TargetFormat
   status: BatchStatus
   outputPath?: string
+  outputSize?: number
+  outputFormat?: TargetFormat
+  outputQuality?: number
   error?: string
 }
 
@@ -19,6 +22,18 @@ export interface ConvertOptions {
   targetFormat: TargetFormat
   outputDir: string
   quality?: number
+}
+
+export interface OutputSizePreviewOptions {
+  targetFormat: TargetFormat
+  quality?: number
+}
+
+export interface OutputSizePreviewResult {
+  id: string
+  outputSize?: number
+  unavailableReason?: string
+  error?: string
 }
 
 export interface ConversionProgressEvent {

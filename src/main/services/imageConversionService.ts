@@ -1,12 +1,35 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, stat } from 'node:fs/promises'
 import sharp, { type Metadata, type Sharp } from 'sharp'
-import type { BatchItem, ConversionProgressEvent, ConvertOptions, TargetFormat } from '@shared/types'
+import type {
+  BatchItem,
+  ConversionProgressEvent,
+  ConvertOptions,
+  OutputSizePreviewOptions,
+  OutputSizePreviewResult,
+  TargetFormat
+} from '@shared/types'
+import { supportsQualityOption } from '@shared/formats'
+import { normalizeQuality } from '@shared/quality'
 import { createAvailableOutputPath } from '@main/utils/outputPath'
 import { getConversionStrategy } from './conversionStrategy'
 
 type ProgressCallback = (event: ConversionProgressEvent) => void
 
 export class ImageConversionService {
+  async previewOutputSizes(
+    items: BatchItem[],
+    options: OutputSizePreviewOptions
+  ): Promise<OutputSizePreviewResult[]> {
+    if (!supportsQualityOption(options.targetFormat)) {
+      return items.map((item) => ({
+        id: item.id,
+        unavailableReason: '质量不适用'
+      }))
+    }
+
+    return Promise.all(items.map((item) => this.previewOutputSize(item, options)))
+  }
+
   async convertBatch(
     items: BatchItem[],
     options: ConvertOptions,
@@ -19,7 +42,7 @@ export class ImageConversionService {
 
     for (const item of items) {
       onProgress?.({
-        item: { ...item, status: 'converting', error: undefined },
+        item: clearOutputResult({ ...item, status: 'converting', error: undefined }),
         completed: results.length,
         total
       })
@@ -52,11 +75,17 @@ export class ImageConversionService {
       const formattedPipeline = this.applyTargetFormat(pipeline, options.targetFormat, options.quality, metadata)
 
       await formattedPipeline.toFile(outputPath)
+      const outputStat = await stat(outputPath)
 
       return {
         ...item,
         status: 'success',
         outputPath,
+        outputSize: outputStat.size,
+        outputFormat: options.targetFormat,
+        outputQuality: supportsQualityOption(options.targetFormat)
+          ? normalizeQuality(options.quality)
+          : undefined,
         error: undefined
       }
     } catch (error) {
@@ -64,7 +93,38 @@ export class ImageConversionService {
         ...item,
         status: 'error',
         outputPath: undefined,
+        outputSize: undefined,
+        outputFormat: undefined,
+        outputQuality: undefined,
         error: error instanceof Error ? error.message : '转换失败'
+      }
+    }
+  }
+
+  private async previewOutputSize(
+    item: BatchItem,
+    options: OutputSizePreviewOptions
+  ): Promise<OutputSizePreviewResult> {
+    try {
+      const metadata = await sharp(item.sourcePath, { animated: true }).metadata()
+      const strategy = getConversionStrategy(item.detectedFormat, options.targetFormat, metadata.pages ?? 1)
+      const pipeline = sharp(item.sourcePath, { animated: strategy.readAnimatedInput }).rotate()
+      const formattedPipeline = this.applyTargetFormat(
+        pipeline,
+        options.targetFormat,
+        options.quality,
+        metadata
+      )
+      const outputBuffer = await formattedPipeline.toBuffer()
+
+      return {
+        id: item.id,
+        outputSize: outputBuffer.byteLength
+      }
+    } catch (error) {
+      return {
+        id: item.id,
+        error: error instanceof Error ? error.message : '预览失败'
       }
     }
   }
@@ -99,17 +159,19 @@ export class ImageConversionService {
   }
 }
 
-function normalizeQuality(quality: number | undefined): number {
-  if (typeof quality !== 'number' || Number.isNaN(quality)) {
-    return 85
-  }
-
-  return Math.min(100, Math.max(1, Math.round(quality)))
-}
-
 function getAnimationOptions(metadata: Metadata): Pick<Metadata, 'delay' | 'loop'> {
   return {
     ...(metadata.delay ? { delay: metadata.delay } : {}),
     ...(typeof metadata.loop === 'number' ? { loop: metadata.loop } : {})
+  }
+}
+
+function clearOutputResult(item: BatchItem): BatchItem {
+  return {
+    ...item,
+    outputPath: undefined,
+    outputSize: undefined,
+    outputFormat: undefined,
+    outputQuality: undefined
   }
 }

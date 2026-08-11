@@ -17,6 +17,8 @@ const FORMAT_TO_EXTENSION: Record<TargetFormat, string> = {
   webp: '.webp'
 }
 
+const QUALITY_ADJUSTABLE_FORMATS = new Set<TargetFormat>(['jpeg', 'webp'])
+
 export function getFileExtension(filePathOrName: string): string {
   const normalized = filePathOrName.replace(/\\/g, '/')
   const fileName = normalized.split('/').pop() ?? normalized
@@ -43,4 +45,8 @@ export function getOutputExtension(targetFormat: TargetFormat): string {
 
 export function isTargetFormat(value: string): value is TargetFormat {
   return TARGET_FORMATS.includes(value as TargetFormat)
+}
+
+export function supportsQualityOption(targetFormat: TargetFormat): boolean {
+  return QUALITY_ADJUSTABLE_FORMATS.has(targetFormat)
 }

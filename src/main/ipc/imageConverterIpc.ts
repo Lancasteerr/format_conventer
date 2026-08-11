@@ -2,7 +2,7 @@ import { dialog, ipcMain, type BrowserWindow } from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import { IPC_CHANNELS } from '@shared/ipc'
 import { isTargetFormat } from '@shared/formats'
-import type { BatchItem, ConvertOptions } from '@shared/types'
+import type { BatchItem, ConvertOptions, OutputSizePreviewOptions, OutputSizePreviewResult } from '@shared/types'
 import { ImageConversionService } from '@main/services/imageConversionService'
 import { ImageFileService } from '@main/services/imageFileService'
 
@@ -56,6 +56,19 @@ export function registerImageConverterIpc(getMainWindow: () => BrowserWindow | n
   )
 
   ipcMain.handle(
+    IPC_CHANNELS.previewOutputSizes,
+    async (
+      _event,
+      items: BatchItem[],
+      options: OutputSizePreviewOptions
+    ): Promise<OutputSizePreviewResult[]> => {
+      validatePreviewRequest(items, options)
+
+      return imageConversionService.previewOutputSizes(items, options)
+    }
+  )
+
+  ipcMain.handle(
     IPC_CHANNELS.convertBatch,
     async (event, items: BatchItem[], options: ConvertOptions): Promise<BatchItem[]> => {
       validateConvertRequest(items, options)
@@ -87,6 +100,16 @@ function validateConvertRequest(items: BatchItem[], options: ConvertOptions): vo
   }
 
   if (!isTargetFormat(options.targetFormat)) {
+    throw new Error('目标格式无效')
+  }
+}
+
+function validatePreviewRequest(items: BatchItem[], options: OutputSizePreviewOptions): void {
+  if (!Array.isArray(items)) {
+    throw new Error('预览列表无效')
+  }
+
+  if (!isTargetFormat(options?.targetFormat)) {
     throw new Error('目标格式无效')
   }
 }

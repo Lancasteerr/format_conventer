@@ -36,6 +36,9 @@ export function useConversion(
           ...item,
           status: 'pending',
           outputPath: undefined,
+          outputSize: undefined,
+          outputFormat: undefined,
+          outputQuality: undefined,
           error: undefined
         }))
       )

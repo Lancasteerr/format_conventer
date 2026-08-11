@@ -20,6 +20,9 @@ export function useBatchItems(): {
           ...item,
           status: 'pending' as const,
           outputPath: undefined,
+          outputSize: undefined,
+          outputFormat: undefined,
+          outputQuality: undefined,
           error: undefined
         }))
 

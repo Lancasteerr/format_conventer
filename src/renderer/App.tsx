@@ -6,10 +6,11 @@ import { ProgressBar } from './components/ProgressBar'
 import { Toolbar } from './components/Toolbar'
 import { useBatchItems } from './hooks/useBatchItems'
 import { useConversion } from './hooks/useConversion'
+import { useOutputSizePreview } from './hooks/useOutputSizePreview'
 import { createDroppedImportResult } from './utils/createDroppedImportResult'
+import { DEFAULT_QUALITY } from '@shared/quality'
 
 const DEFAULT_TARGET_FORMAT: TargetFormat = 'webp'
-const DEFAULT_QUALITY = 85
 
 export function App(): JSX.Element {
   const [targetFormat, setTargetFormat] = useState<TargetFormat>(DEFAULT_TARGET_FORMAT)
@@ -18,6 +19,7 @@ export function App(): JSX.Element {
   const [importError, setImportError] = useState<string | null>(null)
   const { items, addItems, removeItem, clearItems, setItems, updateItem } = useBatchItems()
   const { convertItems, isConverting, progress, error } = useConversion(setItems, updateItem)
+  const outputSizePreviews = useOutputSizePreview(items, targetFormat, quality, isConverting)
   const statusError = error || importError
 
   const canConvert = items.length > 0 && outputDir.length > 0 && !isConverting
@@ -94,7 +96,14 @@ export function App(): JSX.Element {
           {statusError ? <span className="status-error">{statusError}</span> : null}
         </div>
 
-        <FileTable items={items} disabled={isConverting} onRemoveItem={removeItem} />
+        <FileTable
+          items={items}
+          targetFormat={targetFormat}
+          quality={quality}
+          outputSizePreviews={outputSizePreviews}
+          disabled={isConverting}
+          onRemoveItem={removeItem}
+        />
       </section>
     </main>
   )

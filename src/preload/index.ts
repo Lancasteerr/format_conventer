@@ -1,7 +1,12 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { ImageConverterApi } from '@shared/api'
 import { IPC_CHANNELS } from '@shared/ipc'
-import type { BatchItem, ConversionProgressEvent, ConvertOptions } from '@shared/types'
+import type {
+  BatchItem,
+  ConversionProgressEvent,
+  ConvertOptions,
+  OutputSizePreviewOptions
+} from '@shared/types'
 
 const api: ImageConverterApi = {
   selectImages: () => ipcRenderer.invoke(IPC_CHANNELS.selectImages),
@@ -13,6 +18,8 @@ const api: ImageConverterApi = {
   },
   createBatchItemsFromPaths: (filePaths: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.createBatchItemsFromPaths, filePaths),
+  previewOutputSizes: (items: BatchItem[], options: OutputSizePreviewOptions) =>
+    ipcRenderer.invoke(IPC_CHANNELS.previewOutputSizes, items, options),
   convertBatch: (items: BatchItem[], options: ConvertOptions) =>
     ipcRenderer.invoke(IPC_CHANNELS.convertBatch, items, options),
   onConversionProgress: (callback: (event: ConversionProgressEvent) => void) => {
