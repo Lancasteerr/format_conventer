@@ -3,7 +3,7 @@ import { ImagePlus } from 'lucide-react'
 
 interface DropZoneProps {
   disabled: boolean
-  onDropFiles: (files: FileList, filePaths: string[]) => void
+  onDropFiles: (filePaths: string[]) => void
 }
 
 export function DropZone({ disabled, onDropFiles }: DropZoneProps): JSX.Element {
@@ -11,6 +11,7 @@ export function DropZone({ disabled, onDropFiles }: DropZoneProps): JSX.Element 
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>): void {
     event.preventDefault()
+    event.dataTransfer.dropEffect = disabled ? 'none' : 'copy'
 
     if (!disabled) {
       setIsDragging(true)
@@ -30,8 +31,9 @@ export function DropZone({ disabled, onDropFiles }: DropZoneProps): JSX.Element 
       return
     }
 
-    const filePaths = window.imageConverter.getDroppedFilePaths(event.dataTransfer.files)
-    onDropFiles(event.dataTransfer.files, filePaths)
+    const droppedFiles = Array.from(event.dataTransfer.files)
+    const filePaths = window.imageConverter.getDroppedFilePaths(droppedFiles)
+    onDropFiles(filePaths)
   }
 
   return (

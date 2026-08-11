@@ -6,7 +6,7 @@ import { ProgressBar } from './components/ProgressBar'
 import { Toolbar } from './components/Toolbar'
 import { useBatchItems } from './hooks/useBatchItems'
 import { useConversion } from './hooks/useConversion'
-import { createBatchItemsFromDroppedFiles } from './utils/createDroppedItems'
+import { createDroppedImportResult } from './utils/createDroppedImportResult'
 
 const DEFAULT_TARGET_FORMAT: TargetFormat = 'webp'
 const DEFAULT_QUALITY = 85
@@ -15,8 +15,10 @@ export function App(): JSX.Element {
   const [targetFormat, setTargetFormat] = useState<TargetFormat>(DEFAULT_TARGET_FORMAT)
   const [quality, setQuality] = useState(DEFAULT_QUALITY)
   const [outputDir, setOutputDir] = useState<string>('')
+  const [importError, setImportError] = useState<string | null>(null)
   const { items, addItems, removeItem, clearItems, setItems, updateItem } = useBatchItems()
   const { convertItems, isConverting, progress, error } = useConversion(setItems, updateItem)
+  const statusError = error || importError
 
   const canConvert = items.length > 0 && outputDir.length > 0 && !isConverting
   const progressLabel = useMemo(() => {
@@ -29,6 +31,7 @@ export function App(): JSX.Element {
 
   async function handleSelectImages(): Promise<void> {
     const selectedItems = await window.imageConverter.selectImages()
+    setImportError(null)
     addItems(selectedItems)
   }
 
@@ -40,8 +43,18 @@ export function App(): JSX.Element {
     }
   }
 
-  function handleDroppedFiles(files: FileList, filePaths: string[]): void {
-    addItems(createBatchItemsFromDroppedFiles(files, filePaths))
+  async function handleDroppedFiles(filePaths: string[]): Promise<void> {
+    try {
+      const result = await createDroppedImportResult(
+        filePaths,
+        window.imageConverter.createBatchItemsFromPaths
+      )
+
+      setImportError(result.error)
+      addItems(result.items)
+    } catch (importFailure) {
+      setImportError(importFailure instanceof Error ? importFailure.message : '导入文件失败')
+    }
   }
 
   async function handleStartConversion(): Promise<void> {
@@ -78,7 +91,7 @@ export function App(): JSX.Element {
 
         <div className="status-row">
           <ProgressBar completed={progress.completed} total={progress.total} label={progressLabel} />
-          {error ? <span className="status-error">{error}</span> : null}
+          {statusError ? <span className="status-error">{statusError}</span> : null}
         </div>
 
         <FileTable items={items} disabled={isConverting} onRemoveItem={removeItem} />

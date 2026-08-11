@@ -11,6 +11,8 @@ const api: ImageConverterApi = {
       .map((file) => webUtils.getPathForFile(file))
       .filter((filePath) => filePath.length > 0)
   },
+  createBatchItemsFromPaths: (filePaths: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.createBatchItemsFromPaths, filePaths),
   convertBatch: (items: BatchItem[], options: ConvertOptions) =>
     ipcRenderer.invoke(IPC_CHANNELS.convertBatch, items, options),
   onConversionProgress: (callback: (event: ConversionProgressEvent) => void) => {

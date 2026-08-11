@@ -47,6 +47,15 @@ export function registerImageConverterIpc(getMainWindow: () => BrowserWindow | n
   })
 
   ipcMain.handle(
+    IPC_CHANNELS.createBatchItemsFromPaths,
+    async (_event, filePaths: unknown): Promise<BatchItem[]> => {
+      validateFilePaths(filePaths)
+
+      return imageFileService.createBatchItems(filePaths)
+    }
+  )
+
+  ipcMain.handle(
     IPC_CHANNELS.convertBatch,
     async (event, items: BatchItem[], options: ConvertOptions): Promise<BatchItem[]> => {
       validateConvertRequest(items, options)
@@ -60,6 +69,12 @@ export function registerImageConverterIpc(getMainWindow: () => BrowserWindow | n
       })
     }
   )
+}
+
+function validateFilePaths(filePaths: unknown): asserts filePaths is string[] {
+  if (!Array.isArray(filePaths) || !filePaths.every((filePath) => typeof filePath === 'string')) {
+    throw new Error('导入文件路径无效')
+  }
 }
 
 function validateConvertRequest(items: BatchItem[], options: ConvertOptions): void {
